@@ -11,14 +11,28 @@ function getParams(path) {
   return myURL.searchParams;
 }
 
-function rollDice(params) {
-  let rolls = Number(params.get('rolls'));
-  let sides = Number(params.get('sides'));
+function calculateMonthlyPayment(APR, amount, duration) {
+  let annualInterestRate = Number(APR) / 100;
+  let monthlyInterestRate = annualInterestRate / 12;
+  let months = Number(duration) * 12;
+  let monthlyPayment = Number(amount) *
+                  (monthlyInterestRate /
+                  (1 - Math.pow((1 + monthlyInterestRate), (-Number(months)))));
+
+  return monthlyPayment.toFixed(2);
+}
+
+function createLoanOffer(params) {
+  const APR = 5;
+  let amount = Number(params.get('amount'));
+  let duration = Number(params.get('duration'));
+  let monthlyPayment = calculateMonthlyPayment(APR, amount, duration);
+
   let body = '';
-  
-  for (let count = 1; count <= rolls; count++) {
-    body += `${dieRoll(1, sides)}\n`;
-  }
+  body += `Amount: $${amount}\n`;
+  body += `Duration: ${duration} years\n`;
+  body += 'APR: 5%\n';
+  body += `Monthly payment: $${monthlyPayment}`;
 
   return body;
 }
@@ -31,12 +45,11 @@ const SERVER = HTTP.createServer((req, res) => {
     res.statusCode = 404;
     res.end();
   } else {
-    let content = rollDice(getParams(path));
+    let content = calculateLoan(getParams(path));
   
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/plain');
     res.write(`${content}\n`);
-    res.write(`${method} ${path} \n`);
     res.end();
   }
 });
