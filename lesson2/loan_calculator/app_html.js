@@ -2,6 +2,26 @@ const HTTP = require('http');;
 const URL = require('url').URL;
 const PORT = 3000;
 
+const HTML_START = `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Loan Calculator</title>
+  </head>
+  <body>
+    <article>
+      <h1>Loan Calculator</h1>
+      <table>
+        <tbody>`;
+
+const HTML_END = `
+        </tbody>
+      </table>
+    </article>
+  </body>
+</html>`;
+
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
   return myURL.searchParams;
@@ -24,13 +44,13 @@ function createLoanOffer(params) {
   let duration = Number(params.get('duration'));
   let monthlyPayment = calculateMonthlyPayment(APR, amount, duration);
 
-  let body = '';
-  body += `Amount: $${amount}\n`;
-  body += `Duration: ${duration} years\n`;
-  body += 'APR: 5%\n';
-  body += `Monthly payment: $${monthlyPayment}`;
+  let content = `<tr><th>Amount:</th><td>$${amount}</td></tr>
+                 <tr><th>Duration:</th><td>$${duration}</td></tr>
+                 <tr><th>APR:</th><td>${APR}%</td></tr>
+                 <tr><th>Monthly Payment:</th><td>$${monthlyPayment}</td></tr>`;  
+  content = `${HTML_START}${content}${HTML_END}`;
 
-  return body;
+  return content;
 }
 
 const SERVER = HTTP.createServer((req, res) => {
@@ -44,7 +64,7 @@ const SERVER = HTTP.createServer((req, res) => {
     let content = createLoanOffer(getParams(path));
   
     res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Type', 'text/html');
     res.write(`${content}\n`);
     res.end();
   }
