@@ -1,42 +1,25 @@
-const HTTP = require('http');;
+const HTTP = require('http');
 const URL = require('url').URL;
+const PATH = require('path');
+const FS = require('fs');
 const PORT = 3000;
 const HANDLEBARS = require('handlebars');
+const APR = 5;
+const MIME_TYPES = {
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon'
+};
 
-const SOURCE = `
+const LOAN_OFFER_SOURCE = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <title>Loan Calculator</title>
-    <style type="text/css">
-      body {
-        background: rgba(250, 250, 250);
-        font-family: sans-serif;
-        color: rgb(50, 50, 50);
-      }
-
-      article {
-        width: 100%;
-        max-width: 40rem;
-        margin: 0 auto;
-        padding: 1rem 2rem;
-      }
-
-      h1 {
-        font-size: 2.5rem;
-        text-align: center;
-      }
-
-      table {
-        font-size: 2rem;
-      }
-
-      td,
-      th {
-        text-align: right;
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/css/styles.css">
   </head>
   <body>
     <article>
@@ -45,31 +28,64 @@ const SOURCE = `
         <tbody>
           <tr>
             <th>Amount:</th>
-              <td><a href="/?amount=${amount-100}&duration=${duration}">- $100</a></td>
-              <td>$${amount}</td>
-              <td><a href="/?amount=${amount+100}&duration=${duration}">+ $100</a></td>
+            <td>
+              <a href='/loan-offer?amount={{amountDecrement}}&duration={{duration}}'>- $100</a>
+            </td>
+            <td>$ {{amount}}</td>
+            <td>
+              <a href='/loan-offer?amount={{amountIncrement}}&duration={{duration}}'>+ $100</a>
+            </td>
           </tr>
           <tr>
             <th>Duration:</th>
-            <td><a href="/?amount=${amount}&duration=${duration - 1}">- 1 year</a></td>
-            <td>${duration} year(s)</td>
-            <td><a href="/?amount=${amount}&duration=${duration + 1}">+ 1 year</a></td>
+            <td>
+              <a href='/loan-offer?amount={{amount}}&duration={{durationDecrement}}'>- 1 year</a>
+            </td>
+            <td>{{duration}} years</td>
+            <td>
+              <a href='/loan-offer?amount={{amount}}&duration={{durationIncrement}}'>+ 1 year</a>
+            </td>
           </tr>
           <tr>
             <th>APR:</th>
-            <td colspan='3'>${APR}%</td>
+            <td colspan='3'>{{apr}}%</td>
           </tr>
           <tr>
-            <th>Monthly Payment:</th>
-            <td colspan='3'>$${monthlyPayment}</td>
+            <th>Monthly payment:</th>
+            <td colspan='3'>$ {{payment}}</td>
           </tr>
         </tbody>
       </table>
     </article>
   </body>
-</html>`;
+</html>
+`;
 
-const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(source);
+const LOAN_FORM_SOURCE = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Loan Calculator</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+  </head>
+  <body>
+    <article>
+      <h1>Loan Calculator</h1>
+      <form action="/loan-offer" method="get">
+        <p>All loans are offered at an APR of {{apr}}%.</p>
+        <label for="amount">How much do you want to borrow (in dollars)?</label>
+        <input type="number" name="amount" value="">
+        <label for="amount">How much time do you want to pay back your loan?</label>
+        <input type="number" name="duration" value="">
+        <input type="submit" name="" value="Get loan offer!">
+      </form>
+    </article>
+  </body>
+</html>
+`;
+
+const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(LOAN_OFFER_SOURCE);
+const LOAN_FORM_TEMPLATE = HANDLEBARS.compile(LOAN_FORM_SOURCE);
 
 function render(template, data) {
   let html = template(data);
@@ -79,28 +95,25 @@ function render(template, data) {
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
   return myURL.searchParams;
-}
+};
 
-function isInvalid(amount, duration) {
-  return (amount === 0) || (duration === 0);
-}
+function getPathname(path) {
+  const myURL = new URL(path, `http://localhost:${PORT}`);
+  return myURL.pathname;
+};
 
-function calculateMonthlyPayment(APR, amount, duration) {
-  if (isInvalid(amount, duration)) return 0;
-  
-  let annualInterestRate = Number(APR) / 100;
+function calculateLoan(amount, duration, apr) {
+  let annualInterestRate = apr / 100;
   let monthlyInterestRate = annualInterestRate / 12;
   let months = Number(duration) * 12;
-  let monthlyPayment = Number(amount) *
-                  (monthlyInterestRate /
-                  (1 - Math.pow((1 + monthlyInterestRate), (-Number(months)))));
+  let payment = amount *
+          (monthlyInterestRate /
+          (1 - Math.pow((1 + monthlyInterestRate),(-months))));
 
-  return monthlyPayment.toFixed(2);
-}
-
+  return payment.toFixed(2);
+};
 
 function createLoanOffer(params) {
-  const APR = 5;
   let data = {};
 
   data.amount = Number(params.get('amount'));
@@ -110,28 +123,44 @@ function createLoanOffer(params) {
   data.durationIncrement = data.duration + 1;
   data.durationDecrement = data.duration - 1;
   data.apr = APR;
-  data.payment = calculateMonthlyPayment(APR, data.amount, data.duration);
-  data.monthlyPayment = calculateMonthlyPayment(APR, amount, duration);
+  data.payment = calculateLoan(data.amount, data.duration, APR);
 
   return data;
-}
+};
 
 const SERVER = HTTP.createServer((req, res) => {
-  let method = req.method;
   let path = req.url;
+  let pathname = getPathname(path);
+  let fileExtension = PATH.extname(pathname);
 
-  if (path == '/favicon.ico') {
-    res.statusCode = 404;
-    res.end();
-  } else {
-    let data = createLoanOffer(getParams(path));
-    let content = render(LOAN_OFFER_TEMPLATE, data);
-  
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/html');
-    res.write(`${content}\n`);
-    res.end();
-  }
+  FS.readFile(`./public/${pathname}`, (err, data) => {
+    if (data) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', `${MIME_TYPES[fileExtension]}`);
+      res.write(`${data}\n`);
+      res.end();
+    } else {
+      if (pathname === '/') {
+        let content = render(LOAN_FORM_TEMPLATE, {apr: APR});
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/html');
+        res.write(`${content}\n`);
+        res.end();
+      } else if (pathname === '/loan-offer') {
+        let data = createLoanOffer(getParams(path));
+        let content = render(LOAN_OFFER_TEMPLATE, data);
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'text/html');
+        res.write(`${content}\n`);
+        res.end();
+      } else {
+        res.statusCode = 404;
+        res.end();
+      }
+    }
+  });
 });
 
 SERVER.listen(PORT, () => {
