@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "readline-sync": "^1.4.10"
+    "handlebars": "^4.7.7"
   }
 }
