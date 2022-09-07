@@ -1,17 +1,12 @@
 const HTTP = require('http');
 const URL = require('url').URL;
-const PATH = require('path');
-const FS = require('fs');
+const QUERYSTRING = require('querystring');
+const ROUTER = require('router');
+const FINALHANDLER = require('finalhandler');
+const SERVESTATIC = require('serve-static');
 const PORT = 3000;
 const HANDLEBARS = require('handlebars');
 const APR = 5;
-const MIME_TYPES = {
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon'
-};
 
 const LOAN_OFFER_SOURCE = `
 <!DOCTYPE html>
@@ -71,7 +66,7 @@ const LOAN_FORM_SOURCE = `<!DOCTYPE html>
   <body>
     <article>
       <h1>Loan Calculator</h1>
-      <form action="/loan-offer" method="get">
+      <form action="/loan-offer" method="post">
         <p>All loans are offered at an APR of {{apr}}%.</p>
         <label for="amount">How much do you want to borrow (in dollars)?</label>
         <input type="number" name="amount" value="">
@@ -92,9 +87,27 @@ function render(template, data) {
   return html;
 }
 
+function parseFormData(request, callback) {
+  let body = '';
+    request.on('data', chunk => {
+      body += chunk.toString();
+    });
+    request.on('end', () => {
+      let data = QUERYSTRING.parse(body);
+      data.amount = Number(data.amount);
+      data.duration = Number(data.duration);
+      callback(data);
+    });
+};
+
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
-  return myURL.searchParams;
+  let searchParams = myURL.searchParams;
+  let data = {};
+  data.amount = Number(searchParams.get('amount'));
+  data.duration = Number(searchParams.get('duration'));
+
+  return data;
 };
 
 function getPathname(path) {
@@ -113,13 +126,9 @@ function calculateLoan(amount, duration, apr) {
   return payment.toFixed(2);
 };
 
-function createLoanOffer(params) {
-  let data = {};
-
-  data.amount = Number(params.get('amount'));
+function createLoanOffer(data) {
   data.amountIncrement = data.amount + 100;
   data.amountDecrement = data.amount - 100;
-  data.duration = Number(params.get('duration'));
   data.durationIncrement = data.duration + 1;
   data.durationDecrement = data.duration - 1;
   data.apr = APR;
@@ -128,39 +137,47 @@ function createLoanOffer(params) {
   return data;
 };
 
-const SERVER = HTTP.createServer((req, res) => {
-  let path = req.url;
-  let pathname = getPathname(path);
-  let fileExtension = PATH.extname(pathname);
+let router = ROUTER();
+router.use(SERVESTATIC('public'));
 
-  FS.readFile(`./public/${pathname}`, (err, data) => {
-    if (data) {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', `${MIME_TYPES[fileExtension]}`);
-      res.write(`${data}\n`);
-      res.end();
-    } else {
-      if (pathname === '/') {
-        let content = render(LOAN_FORM_TEMPLATE, {apr: APR});
+router.get('/', function (req, res) {
+  let content = render(LOAN_FORM_TEMPLATE, {apr: APR});
 
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/html');
-        res.write(`${content}\n`);
-        res.end();
-      } else if (pathname === '/loan-offer') {
-        let data = createLoanOffer(getParams(path));
-        let content = render(LOAN_OFFER_TEMPLATE, data);
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html');
+  res.write(`${content}\n`);
+  res.end();
+});
 
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'text/html');
-        res.write(`${content}\n`);
-        res.end();
-      } else {
-        res.statusCode = 404;
-        res.end();
-      }
-    }
+router.get('/loan-offer', function (req, res) {
+  let data = createLoanOffer(getParams(req.url));
+  let content = render(LOAN_OFFER_TEMPLATE, data);
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html');
+  res.write(`${content}\n`);
+  res.end();
+});
+
+router.post('/loan-offer', function (req, res) {
+  parseFormData(req, parsedData => {
+    let data = createLoanOffer(parsedData);
+    let content = render(LOAN_OFFER_TEMPLATE, data);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/html');
+    res.write(`${content}\n`);
+    res.end();
   });
+});
+
+router.get('*', function(req, res){
+  res.statusCode = 404;
+  res.end();
+});
+
+const SERVER = HTTP.createServer((req, res) => {
+  router(req, res, FINALHANDLER(req, res));
 });
 
 SERVER.listen(PORT, () => {
