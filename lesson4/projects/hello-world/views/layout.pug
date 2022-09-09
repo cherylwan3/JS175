@@ -1,6 +1,6 @@
 doctype html
 
-html
+html(lang=language)
   head
     block page_title
       title This is the page title
@@ -10,26 +10,14 @@ html
   body
     nav
       ul 
-        li 
-          a(href="/english" class=currentPathClass("/english", currentPath))
-            img.flag(src="/images/US-flag.png"
-                      alt="US Flag"
-                      title="Go to US English site")
-        li 
-           a(href="/french" class=currentPathClass("/french", currentPath))
-            img.flag(src="/images/France-flag.png"
-                    alt="Drapeau de la france"
-                    title="Aller sur le site français")
-        li
-          a(href="/serbian" class=currentPathClass("/serbian", currentPath))
-            img.flag(src="/images/Serbia-flag.png"
-                      alt="Застава Србије"
-                      title="Идите на српски сајт")
-        li 
-          a(href="/japanese" class=currentPathClass("/japanese", currentPath))
-            img.flag(src="/images/Japan-flag.png"
-                    alt="日本の旗"
-                    title="日本サイトへ行く")
+        each country in countries 
+          li  
+            a(href=country.path
+              class=currentPathClass(country.path, currentPath)
+              )
+              img.flag(src=`/images/${country.flag}`
+                      alt=country.alt
+                      title=country.title)
                     
     header
       block greeting
