@@ -41,8 +41,8 @@ const loadTodoList = todoListId => {
 
 // Find todo with indicated ID. Returns `undefined` if not found.
 // Note that `todoId` must be numeric.
-const loadTodo = (todoList, todoID) => {
-  return todoList.todos.find(todo => todo.id === todoID);
+const loadTodo = (todoList, todoId) => {
+  return todoList.todos.find(todo => todo.id === todoId);
 }
 
 app.get("/", (req, res) => {
@@ -109,13 +109,15 @@ app.get("/lists/:todoListId", (req, res, next) => {
 });
 
 // toggle todo completion status
-app.post("/lists/:todoListID/todos/:todoID/toggle", (req, res, next) => {
-  let todoList = loadTodoList(+todoListID);
-  let todo = loadTodo(todoList, +todoID);
+app.post("/lists/:todoListId/todos/:todoId/toggle", (req, res, next) => {
+  let todoListId = req.params.todoListId;
+  let todoList = loadTodoList(+todoListId);
+  let todoId =  req.params.todoId;
+  let todo = loadTodo(todoList, +todoId);
   if (todo === undefined) {
     next(new Error("Not found."));
   } else {
-    todo.done = req.done;
+    todo.done = !todo.done;
     res.render("list", {
       todoList: todoList,
       todos: sortTodos(todoList),
@@ -133,7 +135,3 @@ app.use((err, req, res, _next) => {
 app.listen(port, host, () => {
   console.log(`Todos is listening on port ${port} of ${host}!`);
 });
-
-// check .ID of todolists
-// todoList1 = 1
-// todoList2 = 5;
