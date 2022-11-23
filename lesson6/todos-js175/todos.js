@@ -39,10 +39,14 @@ const loadTodoList = todoListId => {
   return todoLists.find(todoList => todoList.id === todoListId);
 };
 
-// Find todo with indicated ID. Returns `undefined` if not found.
-// Note that `todoId` must be numeric.
-const loadTodo = (todoList, todoId) => {
-  return todoList.todos.find(todo => todo.id === todoId);
+// Find a todo with the indicated ID in the indicated todo list. Returns
+// `undefined` if not found. Note that both `todoListId` and `todoId` must be
+// numeric.
+const loadTodo = (todoListId, todoId) => {
+  let todoList = loadTodoList(todoListId);
+  if (!todoList) return undefined;
+
+  return todoList.findById(todoId);
 }
 
 app.get("/", (req, res) => {
@@ -98,7 +102,7 @@ app.post("/lists",
 app.get("/lists/:todoListId", (req, res, next) => {
   let todoListId = req.params.todoListId;
   let todoList = loadTodoList(+todoListId);
-  if (todoList === undefined) {
+  if (!todoList) {
     next(new Error("Not found."));
   } else {
     res.render("list", {
@@ -108,20 +112,42 @@ app.get("/lists/:todoListId", (req, res, next) => {
   }
 });
 
-// toggle todo completion status
+// Toggle completion status of a todo
 app.post("/lists/:todoListId/todos/:todoId/toggle", (req, res, next) => {
-  let todoListId = req.params.todoListId;
-  let todoList = loadTodoList(+todoListId);
-  let todoId =  req.params.todoId;
-  let todo = loadTodo(todoList, +todoId);
-  if (todo === undefined) {
+  let { todoListId, todoId } = { ...req.params };
+
+  let todo = loadTodo(+todoListId, +todoId);
+  if (!todo) {
     next(new Error("Not found."));
   } else {
-    todo.done = !todo.done;
-    res.render("list", {
-      todoList: todoList,
-      todos: sortTodos(todoList),
-    });
+    if (todo.isDone()) {
+      todo.markUndone();
+      req.flash("success", `"${todo.title}" marked as NOT done.`);
+    } else {
+      todo.markDone();
+      req.flash("success", `"${todo.title}" marked done.`);
+    }
+
+    res.redirect(`/lists/${todoListId}`);
+  }
+});
+
+// Delete a todo 
+app.post("/lists/:todoListId/todos/:todoId/destroy", (req, res, next) => {
+  let { todoListId, todoId } = { ...req.params };
+
+  let todoList = loadTodoList(+todoListId);
+  if (!todoList) {
+    next(new Error(" TodoList Not found."));
+  } else {
+    let todo = loadTodo(+todoListId, +todoId);
+    if (!todo) {
+      next(new Error(" Todo Not found."));
+    } else {
+      todoList.removeAt(todoList.findIndexOf(todo));
+      req.flash("success", `"${todo.title}" todo deleted.`);
+      res.redirect(`/lists/${todoListId}`);
+    }
   }
 });
 

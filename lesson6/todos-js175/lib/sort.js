@@ -24,10 +24,10 @@ module.exports = {
 
   // sort a list of todos
   sortTodos(todoList) {
-  let undone = todoList.todos.filter(todo => !todo.isDone());
-  let done = todoList.todos.filter(todo => todo.isDone());
-  undone.sort(compareByTitle);
-  done.sort(compareByTitle);
-  return [].concat(undone, done);
+    let undone = todoList.allNotDone().toArray();
+    let done = todoList.allDone().toArray();  
+    undone.sort(compareByTitle);
+    done.sort(compareByTitle);
+    return [].concat(undone, done);
   },
 };
