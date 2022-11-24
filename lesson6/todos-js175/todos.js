@@ -98,14 +98,12 @@ app.post("/lists",
   }
 );
 
-// Add this code just before the `app.listen()` call at the bottom of the file.
-
 // Render individual todo list and its todos
 app.get("/lists/:todoListId", (req, res, next) => {
   let todoListId = req.params.todoListId;
   let todoList = loadTodoList(+todoListId);
   if (!todoList) {
-    next(new Error("Not found."));
+    next(new Error("TodoList not found."));
   } else {
     res.render("list", {
       todoList: todoList,
@@ -164,36 +162,50 @@ app.post("/lists/:todoListId/complete_all", (req, res, next) => {
   }
 });
 
-// Create a new todo
+// Create a new todo and add it to the specified list
 app.post("/lists/:todoListId/todos",
-[
-  body("todoTitle")
-    .trim()
-    .isLength({ min: 1})
-    .withMessage("The list title is required.")
-    .isLength({ max: 100})
-    .withMessage("List title must be between 1 and 100 characters.")
-],
-(req, res, next) => {
+  [
+    body("todoTitle")
+      .trim()
+      .isLength({ min: 1})
+      .withMessage("The todo title is required.")
+      .isLength({ max: 100})
+      .withMessage("Todo title must be between 1 and 100 characters.")
+  ],
+  (req, res, next) => {
+    let todoListId = req.params.todoListId;
+    let todoList = loadTodoList(+todoListId);
+    if (!todoList) {
+      next(new Error("TodoList Not found."));
+    } else {
+      let errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        errors.array().forEach(message => req.flash("error", message.msg)); 
+        
+        res.render("list", {
+          flash: req.flash(),
+          todoList: todoList,
+          todos: sortTodos(todoList),
+          todoTitle: req.body.todoTitle,
+        });
+      } else {
+        let todo = new Todo(req.body.todoTitle);
+        todoList.add(todo);
+        req.flash("success", `The todo has been created.`);
+        res.redirect(`/lists/${todoListId}`);    
+      }
+    }
+  }
+);
+
+// Render edit todo list form
+app.get("/lists/:todoListId/edit", (req, res, next) => {
   let todoListId = req.params.todoListId;
   let todoList = loadTodoList(+todoListId);
   if (!todoList) {
-    next(new Error("TodoList Not found."));
+    next(new Error("Not found."));
   } else {
-    let errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      errors.array().forEach(message => req.flash("error", message.msg));  
-      res.render("list", {
-        flash: req.flash(),
-        todoList: todoList,
-        todoTitle: req.body.todoTitle,
-        todos: sortTodos(todoList),
-      });
-    } else {
-      todoList.add(new Todo(req.body.todoTitle));
-      req.flash("success", `Todo has been added.`);
-      res.redirect(`/lists/${todoListId}`);    
-    }
+    res.render("edit-list", { todoList });
   }
 });
 

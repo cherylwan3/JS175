@@ -22,7 +22,7 @@ module.exports = {
     return [].concat(undone, done);
   },
 
-  // sort a list of todos
+  // returns sorted list of todos
   sortTodos(todoList) {
     let undone = todoList.allNotDone().toArray();
     let done = todoList.allDone().toArray();  
